@@ -11,5 +11,9 @@ import RealmSwift
 
 class Category: Object {
     @objc dynamic var name: String = ""
+    @objc dynamic var colour : String = ""
     let items = List<Item>()
+    
 }
+
+// dynamic keyword means you can monitor for changes in that variable while the app is running

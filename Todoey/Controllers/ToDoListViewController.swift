@@ -9,9 +9,10 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
 
-class ToDoListViewController: UITableViewController {
+class ToDoListViewController: SwipeTableViewController {
     @IBOutlet weak var searchBar: UISearchBar!
     
     var toDoItems: Results<Item>?
@@ -29,10 +30,32 @@ class ToDoListViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+        tableView.separatorStyle = .none
+        searchBar.delegate = self
         
-//        searchBar.delegate = self
+
         
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        if let colourHex = selectedCategory?.colour {
+            
+            self.title = selectedCategory!.name
+            
+            guard let navBar = navigationController?.navigationBar else {
+                fatalError("Navigation controller does not exist.")
+            }
+            
+            if let navBarColour = UIColor(hexString: colourHex) {
+                navBar.backgroundColor = navBarColour
+                searchBar.barTintColor = navBarColour
+                searchBar.searchTextField.backgroundColor = UIColor.white
+                navBar.tintColor = ContrastColorOf(navBarColour, returnFlat: true)
+                navBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor : ContrastColorOf(navBarColour, returnFlat: true)]
+            }
+            
+            
+        }
     }
     
     //MARK: - Tableview Datasource Methods
@@ -43,10 +66,17 @@ class ToDoListViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         
         if let item = toDoItems?[indexPath.row] {
             cell.textLabel?.text = item.title
+            
+            if let colour = UIColor(hexString: selectedCategory!.colour)?.darken(byPercentage: CGFloat(indexPath.row) / CGFloat(toDoItems!.count)) {
+                cell.backgroundColor = colour
+                cell.textLabel?.textColor = ContrastColorOf(colour, returnFlat: true)
+            }
+            
             
             //Ternary operator:
             //value = condition ? valueIfTrue : valueIfFalse
@@ -70,9 +100,9 @@ class ToDoListViewController: UITableViewController {
             } catch {
                 print("Error saving done status, \(error)")
             }
-
+            
         }
-
+        
         tableView.reloadData()
         
         tableView.deselectRow(at: indexPath, animated: true)
@@ -92,7 +122,6 @@ class ToDoListViewController: UITableViewController {
             //what happens once user clicks Add Item button on our UIAlert
             
             if let currentCategory = self.selectedCategory {
-                
                 do {
                     try self.realm.write {
                         let newItem = Item()
@@ -103,7 +132,7 @@ class ToDoListViewController: UITableViewController {
                 } catch {
                     print("Error saving new itmes,\(error)")
                 }
-
+                
             }
             
             
@@ -122,36 +151,49 @@ class ToDoListViewController: UITableViewController {
     }
     
     //MARK: - Model Manipulation Methods
-
+    
     func loadItems() {
-
+        
         toDoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
-
+        
         tableView.reloadData()
     }
     
+    //MARK: - Delete Data From Swipe
+    
+    override func updateModel(at indexPath: IndexPath) {
+        if let itemForDeletion = toDoItems?[indexPath.row] {
+            do {
+                try realm.write() {
+                    realm.delete(itemForDeletion)
+                }
+            } catch {
+                print("Error deleting item, \(error)")
+            }
+        }
+    }
     
 }
 
 //MARK: - Search bar methods
 
 extension ToDoListViewController: UISearchBarDelegate {
-
+    
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         
         toDoItems = toDoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: true)
         tableView.reloadData()
-
+        
     }
-
+    
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchBar.text?.count == 0 {
             loadItems()
-
+            
             DispatchQueue.main.async {
                 searchBar.resignFirstResponder()
             }
         }
     }
-
+    
 }
